@@ -106,12 +106,21 @@ def run_task(task_id: str, condition: str, results_dir="results", model=None, re
                 sandbox, mode=cfg["mode"], use_skills=skills_dir is not None, model=model
             )
             try:
+                token_budget = int(os.getenv("LAB_TASK_TOKEN_BUDGET", "0"))
                 for state in agent.stream(
                     {"messages": [{"role": "user", "content": task.instruction}]},
                     config={"callbacks": [usage], "recursion_limit": recursion_limit},
                     stream_mode="values",
                 ):
                     messages = state.get("messages", messages)
+                    consumed = sum(
+                        int(value.get("total_tokens", 0))
+                        for value in usage.usage_metadata.values()
+                    )
+                    if token_budget and consumed >= token_budget:
+                        raise RuntimeError(
+                            f"task token budget reached: {consumed} >= {token_budget}"
+                        )
                 if messages:
                     record["final_message"] = str(messages[-1].content)
             except Exception as exc:  # record failures instead of aborting the experiment

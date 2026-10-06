@@ -93,8 +93,13 @@ def build_agent(sandbox: Path, mode: str = "single", use_skills: bool = False, m
         kwargs["skills"] = ["/skills/"]
         prompt += SKILLS_NOTE
 
+    chosen_model = model if model is not None else make_model()
+    max_output = os.getenv("LAB_MAX_OUTPUT_TOKENS") if model is None else None
+    if max_output:
+        chosen_model = chosen_model.model_copy(update={"max_tokens": int(max_output)})
+
     return create_deep_agent(
-        model=model if model is not None else make_model(),
+        model=chosen_model,
         system_prompt=prompt,
         backend=make_backend(sandbox),
         **kwargs,
