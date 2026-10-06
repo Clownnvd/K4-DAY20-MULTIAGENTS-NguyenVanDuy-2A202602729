@@ -89,9 +89,11 @@ Chín trong 11 lỗi thuộc nhóm E (quy ước tổ chức không có trong đ
 
 > Nêu ít nhất 3 hạn chế và ảnh hưởng của từng hạn chế đến kết luận (ví dụ: chỉ 3 tác vụ mỗi vai trò, mỗi cấu hình chạy một lần, nhiễu của mô hình, tác vụ do giảng viên thiết kế sẵn quy ước, chỉ một mô hình).
 
-1.
-2.
-3.
+1. **Chỉ sáu tác vụ ở ba họ:** mỗi họ chỉ có một tác vụ học và một tác vụ đánh giá. Một chênh lệch điểm ở đây có thể do cấu tạo riêng của tác vụ; không suy rộng thành mức cải thiện của mọi hệ đa tác tử.
+2. **Mỗi điều kiện chỉ chạy chính thức một lần:** Gemini vẫn có biến thiên đầu ra dù đặt `LAB_TEMPERATURE=0`. Chênh lệch giữa bản `skills-auto` phát triển và bản sau đóng băng cho cùng tập học sẽ được dùng như dấu hiệu nhiễu, không phải chứng minh nguyên nhân.
+3. **Tác vụ và quy ước do giảng viên thiết kế:** các check `rule_` không nằm trong đề giao cho tác tử. Skill học từ phản hồi có thể chép quy ước của tập học mà không chuyển được sang tập đánh giá; điểm tốt trên tập học chưa chứng minh khả năng tổng quát hóa.
+4. **Chỉ một model trong bảng chính:** Gemini 3.1 Flash-Lite có hành vi gọi công cụ riêng; các kết luận về `skills_read` hoặc vòng lặp `edit_file` không tự động đúng với model khác. Những lần thử Gemini 3.5 được tách riêng, không trộn số liệu.
+5. **Giới hạn thời gian/đệ quy và hạ tầng:** một lần chạy có thể dừng trước khi tác tử hoàn thiện. Báo cáo nêu riêng `error` và số check đã đạt khi dừng, tránh diễn giải lỗi quota hoặc kết nối thành năng lực của kiến trúc.
 
 ## 10. Kết luận
 
