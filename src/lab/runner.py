@@ -6,10 +6,17 @@ Chạy thật:   python -m lab.runner --condition baseline --tasks learn
 """
 import argparse
 import json
+import os
+import re
+import tempfile
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import AIMessage, ToolMessage
 
+from .agent import build_agent
 from .grading import grade                                                      # có sẵn
 from .tasks import ROOT, get_task, hash_dir, list_tasks, prepare_sandbox         # có sẵn
 
@@ -65,7 +72,93 @@ def run_task(task_id: str, condition: str, results_dir="results", model=None, re
     Lỗi khi chạy tác tử KHÔNG được làm chương trình dừng: ghi vào `error` và vẫn chấm điểm.
     Sandbox là thư mục tạm NGOÀI kho mã nguồn và phải được xóa sau khi chạy.
     """
-    raise NotImplementedError("TODO 1: cài đặt run_task (xem guides/pseudocode/03_runner.md)")
+    cfg = CONDITIONS[condition]
+    task = get_task(task_id)
+    skills_dir = ROOT / cfg["skills_dir"] if cfg["skills_dir"] else None
+    out = Path(results_dir) / condition / task_id
+    out.mkdir(parents=True, exist_ok=True)
+    record = {
+        "task": task.id,
+        "condition": condition,
+        "role": task.role,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "error": None,
+        "seconds": 0.0,
+        "tokens": {"input": 0, "output": 0, "total": 0},
+        "tool_calls": 0,
+        "subagent_calls": 0,
+        "skills_read": 0,
+        "skills_modified": False,
+        "skills_sha256": "",
+        "final_message": "",
+    }
+    messages = []
+    trace_text = ""
+    with tempfile.TemporaryDirectory(prefix="day20-agent-") as tmp:
+        sandbox = Path(tmp)
+        started = time.perf_counter()
+        try:
+            prepare_sandbox(task, sandbox, skills_dir)
+            skills_before = hash_dir(sandbox / "skills")
+            record["skills_sha256"] = skills_before
+            usage = UsageMetadataCallbackHandler()
+            agent = build_agent(
+                sandbox, mode=cfg["mode"], use_skills=skills_dir is not None, model=model
+            )
+            try:
+                for state in agent.stream(
+                    {"messages": [{"role": "user", "content": task.instruction}]},
+                    config={"callbacks": [usage], "recursion_limit": recursion_limit},
+                    stream_mode="values",
+                ):
+                    messages = state.get("messages", messages)
+                if messages:
+                    record["final_message"] = str(messages[-1].content)
+            except Exception as exc:  # record failures instead of aborting the experiment
+                record["error"] = f"{type(exc).__name__}: {exc}"
+                if messages:
+                    record["final_message"] = str(messages[-1].content)
+
+            for value in usage.usage_metadata.values():
+                record["tokens"]["input"] += int(value.get("input_tokens", 0))
+                record["tokens"]["output"] += int(value.get("output_tokens", 0))
+                record["tokens"]["total"] += int(value.get("total_tokens", 0))
+
+            calls = [call for msg in messages if isinstance(msg, AIMessage)
+                     for call in msg.tool_calls]
+            record["tool_calls"] = len(calls)
+            record["subagent_calls"] = sum(call.get("name") == "task" for call in calls)
+            skills_read = set()
+            for call in calls:
+                if call.get("name") != "read_file":
+                    continue
+                path = str(call.get("args", {}).get("file_path", "")).replace("\\", "/")
+                match = re.search(r"(?:^|/)skills/([^/]+)/SKILL\.md$", path)
+                if match:
+                    skills_read.add(match.group(1))
+            record["skills_read"] = len(skills_read)
+            record["skills_modified"] = hash_dir(sandbox / "skills") != skills_before
+        except Exception as exc:  # also record setup failures
+            record["error"] = f"{type(exc).__name__}: {exc}"
+        finally:
+            record["seconds"] = round(time.perf_counter() - started, 1)
+            result = grade(task, sandbox / "workspace")
+            record.update({k: result.get(k) for k in ("score", "passed", "total", "checks")})
+            if result.get("error") and record["error"] is None:
+                record["error"] = result["error"]
+            trace_text = render_trace(messages)
+
+    # Provider exceptions can include a credential; never persist one in a run artifact.
+    for key in ("LAB_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY"):
+        secret = os.getenv(key)
+        if secret and len(secret) >= 8:
+            trace_text = trace_text.replace(secret, "[REDACTED]")
+            for field in ("error", "final_message"):
+                if record[field]:
+                    record[field] = record[field].replace(secret, "[REDACTED]")
+    (out / "trace.md").write_text(trace_text, encoding="utf-8")
+    (out / "run.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    return record
 
 
 def main(argv=None):
