@@ -1,5 +1,7 @@
 # Báo cáo Lab: Self evolving Agentic
 
+> **Bản nộp tạm ngày 06/10/2026.** Harness đã đạt 32/32 kiểm thử ngoại tuyến; `baseline` và `subagents` có đủ 6 tác vụ mỗi điều kiện. `skills-auto` mới có kết quả phát triển trên 3 tác vụ học; 6 lần chạy chính thức sau tag `freeze`, bảng so sánh ba điều kiện và phân tích cuối còn chờ hạn mức Gemini đặt lại. Bảng hai điều kiện hiện ở `report/table.partial.md`; không dùng nó làm kết luận về skill.
+
 > Sao chép tệp này thành `report/REPORT.md` (đã làm ở Phần 0) và điền dần qua các Phần của lab. Xóa các dòng hướng dẫn dạng trích dẫn (bắt đầu bằng `>`). Văn phong kỹ thuật, ngắn gọn, mọi nhận định đi kèm số liệu hoặc bằng chứng. Trong buổi học: điền mục 1 đến 7 (bản nháp). Sau buổi học: hoàn thiện mục 8 đến 10.
 
 ## 1. Thông tin nhóm và cấu hình
